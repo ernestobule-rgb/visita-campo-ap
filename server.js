@@ -1,32 +1,42 @@
-// Componente "Motor de Analytics": define os analytics e calcula os valores por formando.
-// Nesta fase devolve dados de exemplo.
-// Não conhece o formato da Inven!RA: a conversão é feita na API Inven!RA (apiInvenra.js).
+// Ponto de arranque do servidor do Activity Provider.
+const express = require('express');
+const apiInvenra = require('./apiInvenra');
 
-const QUALITATIVOS = [
-  { nome: 'Relatório da visita', slug: 'relatorio' },
-  { nome: 'Recomendação ao produtor', slug: 'recomendacao' },
-  { nome: 'Data da última sincronização', slug: 'sincronizacao' }
-];
+const app = express();
+app.set('trust proxy', true); // URLs com https quando alojado atrás de um proxy (ex.: Render)
+// Aceita JSON mesmo que o pedido venha com Content-Type text/plain.
+app.use(express.json({ type: ['application/json', 'text/plain'] }));
+app.use(express.urlencoded({ extended: true }));
 
-const QUANTITATIVOS = [
-  { nome: 'Acedeu às instruções', tipo: 'boolean', chave: 'instrucoes' },
-  { nome: 'Iniciou a visita de campo', tipo: 'boolean', chave: 'iniciou' },
-  { nome: 'Número de observações registadas', tipo: 'integer', chave: 'obs' },
-  { nome: 'Fotografias submetidas', tipo: 'integer', chave: 'fotos' },
-  { nome: 'Identificação correta da praga', tipo: 'boolean', chave: 'correta' },
-  { nome: 'Tempo total da atividade (minutos)', tipo: 'integer', chave: 'minutos' },
-  { nome: 'Atividade concluída', tipo: 'boolean', chave: 'concluida' }
-];
+// Permite pedidos da plataforma Inven!RA a partir de outro domínio.
+app.use((req, res, next) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
 
-// Dados de exemplo de dois formandos.
-const EXEMPLO = {
-  1001: { instrucoes: true, iniciou: true, obs: 6, fotos: 6, correta: true, minutos: 74, concluida: true,
-          recomendacao: 'Aplicar controlo no funil nas próximas 48 horas.', sincronizacao: '2026-11-16T09:15',
-          relatorio: 'Milho, parcela de demonstração. 6 observações com fotografia. Praga identificada: lagarta do funil.' },
-  1002: { instrucoes: true, iniciou: false, obs: 0, fotos: 0, correta: false, minutos: 0, concluida: false,
-          recomendacao: '(ainda sem recomendação)', sincronizacao: '(ainda não sincronizou)',
-          relatorio: 'O formando abriu as instruções mas ainda não iniciou a visita.' }
-};
+app.use('/', apiInvenra);
+
+app.get('/', (req, res) => {
+  res.json({
+    activityProvider: 'Visita de Campo Guiada',
+    estado: 'em funcionamento',
+    registo: '/registo-visita.json'
+  });
+});
+
+// Pedido com JSON inválido: responde 400 em JSON, sem mostrar detalhes internos.
+app.use((err, req, res, next) => {
+  if (err.type === 'entity.parse.failed') {
+    return res.status(400).json({ erro: 'O corpo do pedido não é JSON válido.' });
+  }
+  console.error(err);
+  res.status(500).json({ erro: 'Erro interno do Activity Provider.' });
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Activity Provider a escutar na porta ${PORT}`));
 
 // Definição dos analytics: quantitativos {nome, tipo}; qualitativos {nome, slug}.
 function definirAnalytics() {
