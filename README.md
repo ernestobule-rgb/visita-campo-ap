@@ -30,12 +30,12 @@ definidos no documento «Activity Providers na Inven!RA» e na página «Pedidos
 
 ## Estrutura
 
-    src/server.js                         arranque do servidor
-    src/componentes/apiInvenra.js         pedidos da Inven!RA e conversão de formato
-    src/componentes/configurador.js       parâmetros e página de configuração
-    src/componentes/gestorInstancias.js   criação de instâncias no deploy
-    src/componentes/repositorio.js        armazenamento das instâncias
-    src/componentes/motorAnalytics.js     definição e valores dos analytics
+    server.js             arranque do servidor
+    apiInvenra.js         pedidos da Inven!RA e conversão de formato
+    configurador.js       parâmetros e página de configuração
+    gestorInstancias.js   criação de instâncias no deploy
+    repositorio.js        armazenamento das instâncias
+    motorAnalytics.js     definição e valores dos analytics
 
 ## Executar localmente
 
