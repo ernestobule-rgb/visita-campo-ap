@@ -1,39 +1,63 @@
-// Ponto de arranque do servidor do Activity Provider.
-const express = require('express');
-const apiInvenra = require('./componentes/apiInvenra');
+// Componente "Motor de Analytics": define os analytics e calcula os valores por formando.
+// Nesta fase devolve dados de exemplo.
+// Não conhece o formato da Inven!RA: a conversão é feita na API Inven!RA (apiInvenra.js).
 
-const app = express();
-app.set('trust proxy', true); // URLs com https quando alojado atrás de um proxy (ex.: Render)
-// Aceita JSON mesmo que o pedido venha com Content-Type text/plain.
-app.use(express.json({ type: ['application/json', 'text/plain'] }));
-app.use(express.urlencoded({ extended: true }));
+const QUALITATIVOS = [
+  { nome: 'Relatório da visita', slug: 'relatorio' },
+  { nome: 'Recomendação ao produtor', slug: 'recomendacao' },
+  { nome: 'Data da última sincronização', slug: 'sincronizacao' }
+];
 
-// Permite pedidos da plataforma Inven!RA a partir de outro domínio.
-app.use((req, res, next) => {
-  res.set('Access-Control-Allow-Origin', '*');
-  res.set('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.sendStatus(204);
-  next();
-});
+const QUANTITATIVOS = [
+  { nome: 'Acedeu às instruções', tipo: 'boolean', chave: 'instrucoes' },
+  { nome: 'Iniciou a visita de campo', tipo: 'boolean', chave: 'iniciou' },
+  { nome: 'Número de observações registadas', tipo: 'integer', chave: 'obs' },
+  { nome: 'Fotografias submetidas', tipo: 'integer', chave: 'fotos' },
+  { nome: 'Identificação correta da praga', tipo: 'boolean', chave: 'correta' },
+  { nome: 'Tempo total da atividade (minutos)', tipo: 'integer', chave: 'minutos' },
+  { nome: 'Atividade concluída', tipo: 'boolean', chave: 'concluida' }
+];
 
-app.use('/', apiInvenra);
+// Dados de exemplo de dois formandos.
+const EXEMPLO = {
+  1001: { instrucoes: true, iniciou: true, obs: 6, fotos: 6, correta: true, minutos: 74, concluida: true,
+          recomendacao: 'Aplicar controlo no funil nas próximas 48 horas.', sincronizacao: '2026-11-16T09:15',
+          relatorio: 'Milho, parcela de demonstração. 6 observações com fotografia. Praga identificada: lagarta do funil.' },
+  1002: { instrucoes: true, iniciou: false, obs: 0, fotos: 0, correta: false, minutos: 0, concluida: false,
+          recomendacao: '(ainda sem recomendação)', sincronizacao: '(ainda não sincronizou)',
+          relatorio: 'O formando abriu as instruções mas ainda não iniciou a visita.' }
+};
 
-app.get('/', (req, res) => {
-  res.json({
-    activityProvider: 'Visita de Campo Guiada',
-    estado: 'em funcionamento',
-    registo: '/registo-visita.json'
-  });
-});
+// Definição dos analytics: quantitativos {nome, tipo}; qualitativos {nome, slug}.
+function definirAnalytics() {
+  return {
+    quantitativos: QUANTITATIVOS.map(({ nome, tipo }) => ({ nome, tipo })),
+    qualitativos: QUALITATIVOS.map(({ nome, slug }) => ({ nome, slug }))
+  };
+}
 
-// Pedido com JSON inválido: responde 400 em JSON, sem mostrar detalhes internos.
-app.use((err, req, res, next) => {
-  if (err.type === 'entity.parse.failed') {
-    return res.status(400).json({ erro: 'O corpo do pedido não é JSON válido.' });
-  }
-  console.error(err);
-  res.status(500).json({ erro: 'Erro interno do Activity Provider.' });
-});
+// Resultados de cada formando de uma instância, em formato interno.
+function calcularResultados(activityID) {
+  return Object.entries(EXEMPLO).map(([stdID, v]) => ({
+    stdID: Number(stdID),
+    quantitativos: QUANTITATIVOS.map(q => ({ nome: q.nome, valor: v[q.chave] })),
+    qualitativos: QUALITATIVOS.map(q => ({ nome: q.nome, slug: q.slug }))
+  }));
+}
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Activity Provider a escutar na porta ${PORT}`));
+// Página de uma analítica qualitativa, para um formando, numa atividade.
+function paginaQualitativa(slug, activityID, stdID) {
+  const q = QUALITATIVOS.find(x => x.slug === slug);
+  const v = EXEMPLO[stdID];
+  if (!q || !v) return null;
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  return `<!doctype html><html lang="pt"><head><meta charset="utf-8"><title>${esc(q.nome)}</title></head>
+<body style="font-family:Arial,sans-serif;margin:16px">
+<h2>${esc(q.nome)}</h2>
+<p><b>Atividade:</b> ${esc(activityID)} · <b>Formando (Inven!RA):</b> ${esc(stdID)}</p>
+<p>${esc(v[slug])}</p>
+<p style="color:#666">Dados de exemplo (fase 1 do projeto).</p>
+</body></html>`;
+}
+
+module.exports = { definirAnalytics, calcularResultados, paginaQualitativa };
